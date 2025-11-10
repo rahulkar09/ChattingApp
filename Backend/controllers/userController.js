@@ -23,7 +23,7 @@ const signupUser = async(req, res) => {
             });
         }
 
-        const salt = await bcrypt.genSalt(12);
+        const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const newUser = await User.create({
@@ -116,6 +116,7 @@ const login = async(req, res) => {
 // Controller to check if user is authenticated (FIXED)
 const checkAuth = async(req, res) => {
     try {
+        
         const user = await User.findById(req.user.userId).select('-password');
         
         if(!user) {
@@ -139,68 +140,45 @@ const checkAuth = async(req, res) => {
 };
 
 // Controller to update user profile
-const updateProfile = async(req, res) => {
+const updateProfile = async (req, res) => {
     try {
-        const {profilePic, bio, fullName} = req.body;
-        
+        const { bio, fullName } = req.body;
         const userId = req.user.userId;
 
-        if(!userId) {
+        if (!userId) {
             return res.status(401).json({
-                success: false, 
+                success: false,
                 message: "Unauthorized - Invalid token"
             });
         }
 
-        let updatedUser;
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { bio, fullName },
+            { new: true }
+        ).select('-password');
 
-        if(!profilePic) {
-            updatedUser = await User.findByIdAndUpdate(
-                userId, 
-                {bio, fullName}, 
-                {new: true}
-            ).select('-password');
-        } else {
-            try {
-                const upload = await cloudinary.uploader.upload(profilePic);
-                updatedUser = await User.findByIdAndUpdate(
-                    userId, 
-                    {
-                        profilePic: upload.secure_url,
-                        bio,
-                        fullName
-                    }, 
-                    {new: true}
-                ).select('-password');
-            } catch(uploadError) {
-                console.error("Cloudinary upload error:", uploadError);
-                return res.status(500).json({
-                    success: false, 
-                    message: "Failed to upload image"
-                });
-            }
-        }
-
-        if(!updatedUser) {
+        if (!updatedUser) {
             return res.status(404).json({
-                success: false, 
+                success: false,
                 message: "User not found"
             });
         }
 
         return res.status(200).json({
-            success: true, 
-            message: "Profile updated successfully", 
+            success: true,
+            message: "Profile updated successfully",
             user: updatedUser
         });
 
-    } catch(error) {  
+    } catch (error) {
         console.error(error);
         return res.status(500).json({
-            success: false, 
+            success: false,
             message: "Internal Server Error"
         });
     }
 };
+
 
 module.exports = {signupUser, login, checkAuth, updateProfile};

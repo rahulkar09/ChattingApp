@@ -1,87 +1,186 @@
-import React from 'react'
-import assets, { userDummyData } from '../assets/assets'
-import { useNavigate } from 'react-router-dom'
+import React, { useContext, useEffect, useState } from 'react';
+import { ChatContext } from '../context/ChatContext';
+import { AuthContext } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
+const Sidebar = () => {
+  const { users, selectedUser, setSelectedUser, unseenMessages, getUsers } = useContext(ChatContext);
+  const { authuser, onlineUsers, logout } = useContext(AuthContext);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const navigate = useNavigate();
 
-const Sidebar = ({selectedUser, setSelectedUser}) => {
-    const navigate = useNavigate()
-    
-    return (
-        <div className='h-full bg-white p-4 flex flex-col'>
-            <div className='flex items-center justify-between mb-6'>
-                <img src={assets.logo} alt="" className='max-w-40'/>
-                
-                <div className='relative group'>
-                    <img 
-                        src={assets.settings_icon} 
-                        alt="" 
-                        className='w-6 h-6 cursor-pointer hover:opacity-70 transition-all'
-                    />
-                    
-                    <div className='absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden group-hover:block z-10'>
-                        
-                        <p 
-                            onClick={() => navigate('/profile')}
-                            className='px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-700 text-sm rounded-t-lg transition-colors'
-                        >
-                            Edit Profile
-                        </p>
-                        <p className='px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-700 text-sm rounded-b-lg transition-colors'>
-                            Logout
-                        </p>
-                    </div>
-                </div>
-            </div>
+  useEffect(() => {
+    getUsers();
+  }, []);
 
+  const isOnline = (userId) => {
+    return onlineUsers.includes(userId);
+  };
 
-            <div className='relative flex items-center bg-gray-100 rounded-lg px-3 py-2 mb-4'>
-                <img src={assets.search_icon} alt="" className='w-5 h-5 mr-2'/>
-                <input 
-                    type="text" 
-                    placeholder='Search User' 
-                    className='flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-500'
+  // Generate initials from fullname
+  const getInitials = (name) => {
+    if (!name) return '?';
+    const names = name.split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Generate consistent color based on name
+  const getAvatarColor = (name) => {
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-yellow-500',
+      'bg-indigo-500',
+      'bg-red-500',
+      'bg-teal-500'
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
+  const handleUserSelect = (user) => {
+    setSelectedUser(user);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const handleEditProfile = () => {
+    navigate('/profile');
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className="w-80 border-r border-gray-200 flex flex-col bg-white h-screen">
+      {/* Sidebar Header with User Profile */}
+      <div className="p-4 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-semibold text-gray-800">Messages</h3>
+          
+          {/* User Profile Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="focus:outline-none hover:opacity-80 transition-opacity"
+            >
+              {authuser?.profilePic ? (
+                <img 
+                  src={authuser.profilePic} 
+                  alt={authuser.fullname}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
                 />
-            </div>
+              ) : (
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-200 ${getAvatarColor(authuser?.fullname || '')}`}>
+                  {getInitials(authuser?.fullname || '')}
+                </div>
+              )}
+            </button>
 
+            {/* Dropdown Menu */}
+            {showDropdown && (
+              <>
+                {/* Backdrop to close dropdown */}
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowDropdown(false)}
+                ></div>
+                
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
+                  {/* User Info */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-800 truncate">
+                      {authuser?.fullname}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {authuser?.email}
+                    </p>
+                  </div>
 
-            <div className='flex-1 overflow-y-auto'>
-                {userDummyData.map((user, index) => (
-                    <div 
-                        key={user.id} 
-                        onClick={() => setSelectedUser(user)} 
-                        className={`cursor-pointer flex items-center gap-3 mb-2 p-3 rounded-lg hover:bg-gray-100 transition-colors ${
-                            selectedUser?.id === user.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                        }`}
-                    >
-                        <div className='relative'>
-                            <img 
-                                src={user?.profilePic || assets.avatar_icon} 
-                                alt="" 
-                                className='w-12 h-12 rounded-full object-cover'
-                            />
-                            {index < 3 && (
-                                <span className='absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full'></span>
-                            )}
-                        </div>
-                        <div className='flex-1 min-w-0'>
-                            <p className='font-semibold text-gray-800 text-sm truncate'>{user.fullName}</p>
-                            {index < 3 ? (
-                                <span className='text-xs text-green-600 font-medium'>Online</span>
-                            ) : (
-                                <span className='text-xs text-gray-500'>Offline</span>
-                            )}
-                        </div>
-                        {index > 2 && (
-                            <span className='bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full shrink-0'>
-                                {index}
-                            </span>
-                        )}
-                    </div>
-                ))}
-            </div>
+                  {/* Menu Items */}
+                  <button
+                    onClick={handleEditProfile}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                  >
+                    <span className="text-lg">✏️</span>
+                    <span>Edit Profile</span>
+                  </button>
+
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <span className="text-lg">🚪</span>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-    )
-}
+      </div>
+      
+      {/* Users List */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        {users && users.length > 0 ? (
+          users.map((user) => (
+            <div
+              key={user._id}
+              className={`flex items-center p-4 cursor-pointer transition-all duration-200 border-l-4 ${
+                selectedUser?._id === user._id 
+                  ? 'bg-blue-50 border-blue-500' 
+                  : 'border-transparent hover:bg-gray-50'
+              }`}
+              onClick={() => handleUserSelect(user)}
+            >
+              {/* User Avatar with Online Status */}
+              <div className="relative mr-3 flex-shrink-0">
+                {user.profilePic ? (
+                  <img 
+                    src={user.profilePic} 
+                    alt={user.fullname}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm ${getAvatarColor(user.fullname)}`}>
+                    {getInitials(user.fullname)}
+                  </div>
+                )}
+                {isOnline(user._id) && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                )}
+              </div>
+              
+              {/* User Info */}
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-medium text-gray-900 truncate">
+                  {user.fullname}
+                </h4>
+                <p className="text-xs text-gray-500 truncate">
+                  {user.email}
+                </p>
+              </div>
+              
+              {/* Unseen Messages Badge */}
+              {unseenMessages[user._id] > 0 && (
+                <span className="ml-2 px-2 py-1 text-xs font-bold text-white bg-blue-500 rounded-full flex-shrink-0">
+                  {unseenMessages[user._id]}
+                </span>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="text-center text-gray-400 py-8">No users available</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
-
-export default Sidebar
+export default Sidebar;

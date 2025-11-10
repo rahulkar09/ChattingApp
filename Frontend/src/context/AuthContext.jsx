@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
     const [authuser, setAuthuser] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [socket, setSocket] = useState(null);
+    
 
     // Check auth user function
     const checkAuthUser = async () => {
@@ -136,7 +137,11 @@ export const AuthProvider = ({ children }) => {
         setOnlineUsers,
         socket,
         setSocket,
-        axios
+        axios,
+        login,
+        logout,
+        updateProfile,
+        checkAuthUser
     };
 
     return (

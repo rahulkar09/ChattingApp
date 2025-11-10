@@ -1,113 +1,126 @@
 const User = require('../models/User');
 const Message = require('../models/message');
 const cloudinary = require('../config/cloudinary');
-const { io, userSocketMap } = require('../server'); // Add this import
+const { io, userSocketMap,  } = require('../server'); // Import socket.io instance and socket map
 
+// Get all users for sidebar with unseen messages count
 const getUserForSidebar = async (req, res) => {
     try {
         const userId = req.user._id;
-        const filteredUsers = await User.find({_id: {$ne: userId}}).select('-password');
+        const filteredUsers = await User.find({ _id: { $ne: userId } }).select('-password');
 
-        // Count number of unseen messages
+        // Count unseen messages from each user to current user
         const unseenMessage = {};
         const promises = filteredUsers.map(async (user) => {
-            const message = await Message.find({
+            const messages = await Message.find({
                 senderId: user._id,
-                receiverId: userId, // Fixed spelling
+                receiverId: userId,
                 seen: false
             });
-            if (message.length > 0) {
-                unseenMessage[user._id] = message.length;
+            if (messages.length > 0) {
+                unseenMessage[user._id] = messages.length;
             }
         });
         await Promise.all(promises);
 
         return res.status(200).json({
-            success: true, 
-            data: {filteredUsers, unseenMessage}
+            success: true,
+            data: { filteredUsers, unseenMessage }
         });
     }
     catch (error) {
-        console.error(error);
-        return res.status(500).json({success: false, message: "Internal Server Error"});
-    }   
+        console.error('getUserForSidebar error:', error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
 };
 
-// Get all messages for selected user
+// Get all messages exchanged with selected user
 const getMessages = async (req, res) => {
     try {
-        const {id: selectedUserId} = req.params;
+        const selectedUserId = req.params.id;
         const myId = req.user._id;
+
         const messages = await Message.find({
             $or: [
-                {senderId: myId, receiverId: selectedUserId},
-                {senderId: selectedUserId, receiverId: myId}
+                { senderId: myId, receiverId: selectedUserId },
+                { senderId: selectedUserId, receiverId: myId }
             ]
-        }).sort({createdAt: 1});
-        
+        }).sort({ createdAt: 1 });
+
+        // Mark messages from selected user as seen
         await Message.updateMany(
-            {senderId: selectedUserId, receiverId: myId, seen: false},
-            {$set: {seen: true}}
+            { senderId: selectedUserId, receiverId: myId, seen: false },
+            { $set: { seen: true } }
         );
-        
-        return res.status(200).json({success: true, messages});
+
+        return res.status(200).json({ success: true, messages });
     }
     catch (error) {
-        console.error(error);
-        return res.status(500).json({success: false, message: "Internal Server Error"});
+        console.error('getMessages error:', error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
 
-// API to mark message as seen using message id
+// Mark a single message as seen by message ID
 const markMessageAsSeen = async (req, res) => {
     try {
-        const {id} = req.params;
-        await Message.findByIdAndUpdate(id, {seen: true});
-        return res.status(200).json({success: true, message: "Message marked as seen"});
+        const messageId = req.params.id;
+        await Message.findByIdAndUpdate(messageId, { seen: true });
+        return res.status(200).json({ success: true, message: "Message marked as seen" });
     }
     catch (error) {
-        console.error(error);
-        return res.status(500).json({success: false, message: "Internal Server Error"});
+        console.error('markMessageAsSeen error:', error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-}
+};
 
-// API for sending message to a selected user
+// Send message (text and/or image) to selected user and emit socket event if online
 const sendMessage = async (req, res) => {
     try {
-        const {text, image} = req.body;
-        const receiverId = req.params.id; // Fixed spelling
+        const { text, image } = req.body;
+        const receiverId = req.params.id;
         const senderId = req.user._id;
-        let imageUrl;
-        
+
+        if (!receiverId) {
+            return res.status(400).json({ success: false, message: "Receiver ID is required" });
+        }
+
+        let imageUrl = null;
         if (image) {
             const uploadResponse = await cloudinary.uploader.upload(image);
             imageUrl = uploadResponse.secure_url;
         }
 
-        // Fixed: Use Message.create with await (no 'new' keyword)
+        // Create and save new message document
         const newMessage = await Message.create({
             senderId,
-            receiverId, // Fixed spelling
+            receiverId,
             text,
             image: imageUrl
         });
 
-        // Emit the message to the receiver if online using socket.io
+        console.log("receiverId:", receiverId);
+console.log("receiverSocketId from map:", userSocketMap[receiverId]);
+
+
+        // Emit message to recipient if connected
         const receiverSocketId = userSocketMap[receiverId];
         if (receiverSocketId) {
             io.to(receiverSocketId).emit('newMessage', newMessage);
+        } else {
+            console.log(`Receiver socket not connected for userId: ${receiverId}`);
         }
-        
-        return res.status(200).json({ 
+
+        return res.status(200).json({
             success: true,
             message: "Message sent successfully",
             data: newMessage
         });
     }
     catch (error) {
-        console.error(error);
-        return res.status(500).json({success: false, message: "Internal Server Error"});
+        console.error('sendMessage error:', error);
+        return res.status(500).json({ success: false, message: "Internal Server Error" });
     }
-}
+};
 
-module.exports = {getUserForSidebar, getMessages, markMessageAsSeen, sendMessage};
+module.exports = { getUserForSidebar, getMessages, markMessageAsSeen, sendMessage };
